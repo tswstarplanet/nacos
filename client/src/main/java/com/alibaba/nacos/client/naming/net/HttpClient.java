@@ -16,7 +16,6 @@
 package com.alibaba.nacos.client.naming.net;
 
 import com.alibaba.nacos.client.naming.utils.IoUtils;
-import com.alibaba.nacos.client.naming.utils.LogUtils;
 import com.alibaba.nacos.client.naming.utils.StringUtils;
 import com.google.common.net.HttpHeaders;
 
@@ -30,14 +29,16 @@ import java.net.URLEncoder;
 import java.util.*;
 import java.util.zip.GZIPInputStream;
 
+import static com.alibaba.nacos.client.utils.LogUtils.*;
+
 /**
- * @author dungu.zpf
+ * @author <a href="mailto:zpf.073@gmail.com">nkorange</a>
  */
 public class HttpClient {
 
-    public static final int TIME_OUT_MILLIS = Integer.parseInt(System.getProperty("com.taobao.vipserver.ctimeout", "50000"));
-    public static final int CON_TIME_OUT_MILLIS = Integer.parseInt(System.getProperty("com.taobao.vipserver.ctimeout", "3000"));
-    private static final boolean ENABLE_HTTPS = Boolean.parseBoolean(System.getProperty("tls.enable", "false"));
+    public static final int TIME_OUT_MILLIS = Integer.getInteger("com.alibaba.nacos.client.naming.ctimeout", 50000);
+    public static final int CON_TIME_OUT_MILLIS = Integer.getInteger("com.alibaba.nacos.client.naming.ctimeout", 3000);
+    private static final boolean ENABLE_HTTPS = Boolean.getBoolean("com.alibaba.nacos.client.naming.tls.enable");
 
     static {
         // limit max redirection
@@ -70,20 +71,20 @@ public class HttpClient {
             conn.setRequestMethod(method);
             setHeaders(conn, headers, encoding);
             conn.connect();
-            LogUtils.LOG.info("Request from server: " + url);
+            NAMING_LOGGER.debug("Request from server: " + url);
             return getResult(conn);
         } catch (Exception e) {
             try {
                 if (conn != null) {
-                    LogUtils.LOG.warn("failed to request " + conn.getURL() + " from "
+                    NAMING_LOGGER.warn("failed to request " + conn.getURL() + " from "
                             + InetAddress.getByName(conn.getURL().getHost()).getHostAddress());
                 }
             } catch (Exception e1) {
-                LogUtils.LOG.error("NA", "failed to request ", e1);
+                NAMING_LOGGER.error("[NA] failed to request ", e1);
                 //ignore
             }
 
-            LogUtils.LOG.error("NA", "failed to request ", e);
+            NAMING_LOGGER.error("[NA] failed to request ", e);
 
             return new HttpResult(500, e.toString(), Collections.<String, String>emptyMap());
         } finally {
@@ -173,12 +174,6 @@ public class HttpClient {
         }
 
         return sb.toString();
-    }
-
-    public static void main(String[] args) throws UnsupportedEncodingException {
-        Map<String, String> params = new HashMap<String, String>(2);
-        params.put("s", "Wms+rkGG8jlaBBbpl8FIDxxNQGA=");
-        System.out.println(encodingParams(params, "utf-8"));
     }
 
     public static class HttpResult {
