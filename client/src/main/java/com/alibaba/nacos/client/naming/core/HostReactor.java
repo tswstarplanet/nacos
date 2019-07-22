@@ -23,9 +23,8 @@ import com.alibaba.nacos.client.monitor.MetricsMonitor;
 import com.alibaba.nacos.client.naming.backups.FailoverReactor;
 import com.alibaba.nacos.client.naming.cache.DiskCache;
 import com.alibaba.nacos.client.naming.net.NamingProxy;
-import com.alibaba.nacos.client.naming.utils.StringUtils;
 import com.alibaba.nacos.client.naming.utils.UtilAndComs;
-import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
+import com.alibaba.nacos.client.utils.StringUtils;
 
 import java.util.*;
 import java.util.concurrent.*;
@@ -37,9 +36,9 @@ import static com.alibaba.nacos.client.utils.LogUtils.NAMING_LOGGER;
  */
 public class HostReactor {
 
-    public static final long DEFAULT_DELAY = 1000L;
+    private static final long DEFAULT_DELAY = 1000L;
 
-    public long updateHoldInterval = 5000L;
+    private static final long UPDATE_HOLD_INTERVAL = 5000L;
 
     private final Map<String, ScheduledFuture<?>> futureMap = new HashMap<String, ScheduledFuture<?>>();
 
@@ -141,9 +140,7 @@ public class HostReactor {
 
                 if (!oldHostMap.containsKey(key)) {
                     newHosts.add(host);
-                    continue;
                 }
-
             }
 
             for (Map.Entry<String, Instance> entry : oldHostMap.entrySet()) {
@@ -155,7 +152,6 @@ public class HostReactor {
 
                 if (!newHostMap.containsKey(key)) {
                     remvHosts.add(host);
-                    continue;
                 }
 
             }
@@ -199,7 +195,7 @@ public class HostReactor {
         return serviceInfo;
     }
 
-    private ServiceInfo getSerivceInfo0(String serviceName, String clusters) {
+    private ServiceInfo getServiceInfo0(String serviceName, String clusters) {
 
         String key = ServiceInfo.getKey(serviceName, clusters);
 
@@ -222,7 +218,7 @@ public class HostReactor {
             return failoverReactor.getService(key);
         }
 
-        ServiceInfo serviceObj = getSerivceInfo0(serviceName, clusters);
+        ServiceInfo serviceObj = getServiceInfo0(serviceName, clusters);
 
         if (null == serviceObj) {
             serviceObj = new ServiceInfo(serviceName, clusters);
@@ -235,11 +231,11 @@ public class HostReactor {
 
         } else if (updatingMap.containsKey(serviceName)) {
 
-            if (updateHoldInterval > 0) {
+            if (UPDATE_HOLD_INTERVAL > 0) {
                 // hold a moment waiting for update finish
                 synchronized (serviceObj) {
                     try {
-                        serviceObj.wait(updateHoldInterval);
+                        serviceObj.wait(UPDATE_HOLD_INTERVAL);
                     } catch (InterruptedException e) {
                         NAMING_LOGGER.error("[getServiceInfo] serviceName:" + serviceName + ", clusters:" + clusters, e);
                     }
@@ -267,9 +263,8 @@ public class HostReactor {
         }
     }
 
-    @SuppressFBWarnings("NN_NAKED_NOTIFY")
     public void updateServiceNow(String serviceName, String clusters) {
-        ServiceInfo oldService = getSerivceInfo0(serviceName, clusters);
+        ServiceInfo oldService = getServiceInfo0(serviceName, clusters);
         try {
 
             String result = serverProxy.queryList(serviceName, clusters, pushReceiver.getUDPPort(), false);

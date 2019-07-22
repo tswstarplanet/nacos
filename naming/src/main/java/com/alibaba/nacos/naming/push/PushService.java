@@ -17,11 +17,14 @@ package com.alibaba.nacos.naming.push;
 
 import com.alibaba.fastjson.JSON;
 import com.alibaba.nacos.naming.misc.Loggers;
-import com.alibaba.nacos.naming.misc.Switch;
+import com.alibaba.nacos.naming.misc.SwitchDomain;
 import com.alibaba.nacos.naming.misc.UtilsAndCommons;
+import com.alibaba.nacos.naming.pojo.Subscriber;
 import org.apache.commons.collections.MapUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.codehaus.jackson.util.VersionUtil;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Component;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -30,6 +33,7 @@ import java.net.DatagramSocket;
 import java.net.InetSocketAddress;
 import java.net.SocketException;
 import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -38,9 +42,13 @@ import java.util.zip.GZIPOutputStream;
 /**
  * @author nacos
  */
+@Component
 public class PushService {
 
-    public static final long ACK_TIMEOUT_NANOS = TimeUnit.SECONDS.toNanos(10L);
+    @Autowired
+    private SwitchDomain switchDomain;
+
+    private static final long ACK_TIMEOUT_NANOS = TimeUnit.SECONDS.toNanos(10L);
 
     private static final int MAX_RETRY_TIMES = 1;
 
@@ -83,18 +91,13 @@ public class PushService {
         }
     });
 
-
     static {
         try {
             udpSocket = new DatagramSocket();
 
-            Receiver receiver;
+            Receiver receiver = new Receiver();
 
-            Thread inThread;
-
-            receiver = new Receiver();
-
-            inThread = new Thread(receiver);
+            Thread inThread = new Thread(receiver);
             inThread.setDaemon(true);
             inThread.setName("com.alibaba.nacos.naming.push.receiver");
             inThread.start();
@@ -115,16 +118,16 @@ public class PushService {
         }
     }
 
-    public static int getTotalPush() {
+    public int getTotalPush() {
         return totalPush;
     }
 
-    public static void setTotalPush(int totalPush) {
+    public void setTotalPush(int totalPush) {
         PushService.totalPush = totalPush;
     }
 
-    public static void addClient(String namespaceId,
-                                 String dom,
+    public void addClient(String namespaceId,
+                                 String serviceName,
                                  String clusters,
                                  String agent,
                                  InetSocketAddress socketAddr,
@@ -132,8 +135,8 @@ public class PushService {
                                  String tenant,
                                  String app) {
 
-        PushClient client = new PushService.PushClient(namespaceId,
-                dom,
+        PushClient client = new PushClient(namespaceId,
+                serviceName,
                 clusters,
                 agent,
                 socketAddr,
@@ -144,8 +147,8 @@ public class PushService {
     }
 
     public static void addClient(PushClient client) {
-        // client is stored by key 'dom' because notify event is driven by dom change
-        String serviceKey = UtilsAndCommons.assembleFullServiceName(client.getNamespaceId(), client.getDom());
+        // client is stored by key 'serviceName' because notify event is driven by serviceName change
+        String serviceKey = UtilsAndCommons.assembleFullServiceName(client.getNamespaceId(), client.getServiceName());
         ConcurrentMap<String, PushClient> clients =
             clientMap.get(serviceKey);
         if (clients == null) {
@@ -161,8 +164,21 @@ public class PushService {
             if (res != null) {
                 Loggers.PUSH.warn("client: {} already associated with key {}", res.getAddrStr(), res.toString());
             }
-            Loggers.PUSH.debug("client: {} added for dom: {}", client.getAddrStr(), client.getDom());
+            Loggers.PUSH.debug("client: {} added for serviceName: {}", client.getAddrStr(), client.getServiceName());
         }
+    }
+
+    public List<Subscriber> getClients(String serviceName, String namespaceId) {
+        String serviceKey = UtilsAndCommons.assembleFullServiceName(namespaceId, serviceName);
+        ConcurrentMap<String, PushClient> clientConcurrentMap = clientMap.get(serviceKey);
+        if (Objects.isNull(clientConcurrentMap)) {
+            return null;
+        }
+        List<Subscriber> clients = new ArrayList<Subscriber>();
+        clientConcurrentMap.forEach((key, client) -> {
+            clients.add(new Subscriber(client.getAddrStr(),client.getAgent(),client.getApp(),client.getIp(),namespaceId,serviceName));
+        });
+        return clients;
     }
 
     public static void removeClientIfZombie() {
@@ -208,20 +224,23 @@ public class PushService {
         return null;
     }
 
-    public static String getPushCacheKey(String dom, String clientIP, String agent) {
-        return dom + UtilsAndCommons.CACHE_KEY_SPLITER + agent;
+    public static String getPushCacheKey(String serviceName, String clientIP, String agent) {
+        return serviceName + UtilsAndCommons.CACHE_KEY_SPLITER + agent;
     }
 
-    public static void domChanged(final String namespaceId, final String dom) {
-        if (futureMap.containsKey(UtilsAndCommons.assembleFullServiceName(namespaceId, dom))) {
+    public void serviceChanged(final String namespaceId, final String serviceName) {
+
+        // merge some change events to reduce the push frequency:
+        if (futureMap.containsKey(UtilsAndCommons.assembleFullServiceName(namespaceId, serviceName))) {
             return;
         }
+
         Future future = udpSender.schedule(new Runnable() {
             @Override
             public void run() {
                 try {
-                    Loggers.PUSH.info(dom + " is changed, add it to push queue.");
-                    ConcurrentMap<String, PushClient> clients = clientMap.get(UtilsAndCommons.assembleFullServiceName(namespaceId, dom));
+                    Loggers.PUSH.info(serviceName + " is changed, add it to push queue.");
+                    ConcurrentMap<String, PushClient> clients = clientMap.get(UtilsAndCommons.assembleFullServiceName(namespaceId, serviceName));
                     if (MapUtils.isEmpty(clients)) {
                         return;
                     }
@@ -237,16 +256,16 @@ public class PushService {
                         }
 
                         Receiver.AckEntry ackEntry;
-                        Loggers.PUSH.debug("push dom: {} to client: {}", dom, client.toString());
-                        String key = getPushCacheKey(dom, client.getIp(), client.getAgent());
+                        Loggers.PUSH.debug("push serviceName: {} to client: {}", serviceName, client.toString());
+                        String key = getPushCacheKey(serviceName, client.getIp(), client.getAgent());
                         byte[] compressData = null;
                         Map<String, Object> data = null;
-                        if (Switch.getPushCacheMillis() >= 20000 && cache.containsKey(key)) {
+                        if (switchDomain.getDefaultPushCacheMillis() >= 20000 && cache.containsKey(key)) {
                             org.javatuples.Pair pair = (org.javatuples.Pair) cache.get(key);
                             compressData = (byte[]) (pair.getValue0());
                             data = (Map<String, Object>) pair.getValue1();
 
-                            Loggers.PUSH.debug("[PUSH-CACHE] cache hit: {}:{}", dom, client.getAddrStr());
+                            Loggers.PUSH.debug("[PUSH-CACHE] cache hit: {}:{}", serviceName, client.getAddrStr());
                         }
 
                         if (compressData != null) {
@@ -258,38 +277,43 @@ public class PushService {
                             }
                         }
 
-                        Loggers.PUSH.info("dom: {} changed, schedule push for: {}, agent: {}, key: {}",
-                            client.getDom(), client.getAddrStr(), client.getAgent(),  (ackEntry == null ? null : ackEntry.key));
+                        Loggers.PUSH.info("serviceName: {} changed, schedule push for: {}, agent: {}, key: {}",
+                            client.getServiceName(), client.getAddrStr(), client.getAgent(),  (ackEntry == null ? null : ackEntry.key));
 
                         udpPush(ackEntry);
                     }
                 } catch (Exception e) {
-                    Loggers.PUSH.error("[NACOS-PUSH] failed to push dom: {} to client, error: {}", dom, e);
+                    Loggers.PUSH.error("[NACOS-PUSH] failed to push serviceName: {} to client, error: {}", serviceName, e);
 
                 } finally {
-                    futureMap.remove(UtilsAndCommons.assembleFullServiceName(namespaceId, dom));
+                    futureMap.remove(UtilsAndCommons.assembleFullServiceName(namespaceId, serviceName));
                 }
 
             }
         }, 1000, TimeUnit.MILLISECONDS);
 
-        futureMap.put(UtilsAndCommons.assembleFullServiceName(namespaceId, dom), future);
+        futureMap.put(UtilsAndCommons.assembleFullServiceName(namespaceId, serviceName), future);
     }
 
-    public static boolean canEnablePush(String agent) {
+    public boolean canEnablePush(String agent) {
+
+        if (!switchDomain.isPushEnabled()) {
+            return false;
+        }
+
         ClientInfo clientInfo = new ClientInfo(agent);
 
         if (ClientInfo.ClientType.JAVA == clientInfo.type
-                && clientInfo.version.compareTo(VersionUtil.parseVersion(Switch.getPushJavaVersion())) >= 0) {
+                && clientInfo.version.compareTo(VersionUtil.parseVersion(switchDomain.getPushJavaVersion())) >= 0) {
             return true;
         } else if (ClientInfo.ClientType.DNS == clientInfo.type
-                && clientInfo.version.compareTo(VersionUtil.parseVersion(Switch.getPushPythonVersion())) >= 0) {
+                && clientInfo.version.compareTo(VersionUtil.parseVersion(switchDomain.getPushPythonVersion())) >= 0) {
             return true;
         } else if (ClientInfo.ClientType.C == clientInfo.type
-                && clientInfo.version.compareTo(VersionUtil.parseVersion(Switch.getPushCVersion())) >= 0) {
+                && clientInfo.version.compareTo(VersionUtil.parseVersion(switchDomain.getPushCVersion())) >= 0) {
             return true;
         } else if (ClientInfo.ClientType.GO == clientInfo.type
-                   && clientInfo.version.compareTo(VersionUtil.parseVersion(Switch.getPushGoVersion())) >= 0) {
+                   && clientInfo.version.compareTo(VersionUtil.parseVersion(switchDomain.getPushGoVersion())) >= 0) {
             return true;
         }
 
@@ -300,11 +324,11 @@ public class PushService {
         return new ArrayList<Receiver.AckEntry>(ackMap.values());
     }
 
-    public static int getFailedPushCount() {
+    public int getFailedPushCount() {
         return ackMap.size() + failedPush;
     }
 
-    public static void setFailedPush(int failedPush) {
+    public void setFailedPush(int failedPush) {
         PushService.failedPush = failedPush;
     }
 
@@ -313,9 +337,9 @@ public class PushService {
         ackMap.clear();
     }
 
-    public static class PushClient {
+    public class PushClient {
         private String namespaceId;
-        private String dom;
+        private String serviceName;
         private String clusters;
         private String agent;
         private String tenant;
@@ -335,7 +359,7 @@ public class PushService {
         public long lastRefTime = System.currentTimeMillis();
 
         public PushClient(String namespaceId,
-                          String dom,
+                          String serviceName,
                           String clusters,
                           String agent,
                           InetSocketAddress socketAddr,
@@ -343,7 +367,7 @@ public class PushService {
                           String tenant,
                           String app) {
             this.namespaceId = namespaceId;
-            this.dom = dom;
+            this.serviceName = serviceName;
             this.clusters = clusters;
             this.agent = agent;
             this.socketAddr = socketAddr;
@@ -361,12 +385,12 @@ public class PushService {
         }
 
         public boolean zombie() {
-            return System.currentTimeMillis() - lastRefTime > Switch.getPushCacheMillis(dom);
+            return System.currentTimeMillis() - lastRefTime > switchDomain.getPushCacheMillis(serviceName);
         }
 
         @Override
         public String toString() {
-            return "dom: " + dom
+            return "serviceName: " + serviceName
                     + ", clusters: " + clusters
                     + ", ip: " + socketAddr.getAddress().getHostAddress()
                     + ", port: " + socketAddr.getPort()
@@ -387,7 +411,7 @@ public class PushService {
 
         @Override
         public int hashCode() {
-            return Objects.hash(dom, clusters, socketAddr);
+            return Objects.hash(serviceName, clusters, socketAddr);
         }
 
         @Override
@@ -398,7 +422,7 @@ public class PushService {
 
             PushClient other = (PushClient) obj;
 
-            return dom.equals(other.dom) && clusters.equals(other.clusters) && socketAddr.equals(other.socketAddr);
+            return serviceName.equals(other.serviceName) && clusters.equals(other.clusters) && socketAddr.equals(other.socketAddr);
         }
 
         public String getClusters() {
@@ -417,12 +441,12 @@ public class PushService {
             this.namespaceId = namespaceId;
         }
 
-        public String getDom() {
-            return dom;
+        public String getServiceName() {
+            return serviceName;
         }
 
-        public void setDom(String dom) {
-            this.dom = dom;
+        public void setServiceName(String serviceName) {
+            this.serviceName = serviceName;
         }
 
         public String getTenant() {
@@ -489,7 +513,7 @@ public class PushService {
         String dataStr = JSON.toJSONString(data);
 
         try {
-            byte[] dataBytes = dataStr.getBytes("UTF-8");
+            byte[] dataBytes = dataStr.getBytes(StandardCharsets.UTF_8);
             dataBytes = compressIfNecessary(dataBytes);
 
             DatagramPacket packet = new DatagramPacket(dataBytes, dataBytes.length, client.socketAddr);

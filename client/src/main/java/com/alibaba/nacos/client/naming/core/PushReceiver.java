@@ -17,7 +17,7 @@ package com.alibaba.nacos.client.naming.core;
 
 import com.alibaba.fastjson.JSON;
 import com.alibaba.nacos.client.naming.utils.IoUtils;
-import com.alibaba.nacos.client.naming.utils.StringUtils;
+import com.alibaba.nacos.client.utils.StringUtils;
 
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
@@ -35,7 +35,7 @@ public class PushReceiver implements Runnable {
 
     private ScheduledExecutorService executorService;
 
-    public static final int UDP_MSS = 64 * 1024;
+    private static final int UDP_MSS = 64 * 1024;
 
     private DatagramSocket udpSocket;
 
@@ -77,7 +77,7 @@ public class PushReceiver implements Runnable {
 
                 PushPacket pushPacket = JSON.parseObject(json, PushPacket.class);
                 String ack;
-                if ("dom".equals(pushPacket.type)) {
+                if ("dom".equals(pushPacket.type) || "service".equals(pushPacket.type)) {
                     hostReactor.processServiceJSON(pushPacket.data);
 
                     // send ack to server

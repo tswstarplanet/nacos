@@ -29,7 +29,7 @@ import java.nio.charset.CharsetDecoder;
 import static com.alibaba.nacos.client.utils.LogUtils.NAMING_LOGGER;
 
 /**
- * @author <a href="mailto:zpf.073@gmail.com">nkorange</a>
+ * @author nkorange
  */
 public class ConcurrentDiskUtil {
 
@@ -211,6 +211,6 @@ public class ConcurrentDiskUtil {
         }
     }
 
-    static final int RETRY_COUNT = 10;
-    static final int SLEEP_BASETIME = 10;
+    private static final int RETRY_COUNT = 10;
+    private static final int SLEEP_BASETIME = 10;
 }

@@ -16,10 +16,11 @@
 package com.alibaba.nacos.client.naming.cache;
 
 import com.alibaba.fastjson.JSON;
+import com.alibaba.nacos.api.common.Constants;
 import com.alibaba.nacos.api.naming.pojo.Instance;
 import com.alibaba.nacos.api.naming.pojo.ServiceInfo;
 import com.alibaba.nacos.client.naming.utils.CollectionUtils;
-import com.alibaba.nacos.client.naming.utils.StringUtils;
+import com.alibaba.nacos.client.utils.StringUtils;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -42,7 +43,6 @@ public class DiskCache {
 
         try {
             makeSureCacheDirExists(dir);
-
 
 
             File file = new File(dir, dom.getKeyEncoded());
@@ -71,9 +71,8 @@ public class DiskCache {
         }
     }
 
-    public static String getLineSeperator() {
-        String lineSeparator = System.getProperty("line.separator");
-        return lineSeparator;
+    public static String getLineSeparator() {
+        return System.getProperty("line.separator");
     }
 
     public static Map<String, ServiceInfo> read(String cacheDir) {
@@ -82,7 +81,7 @@ public class DiskCache {
         BufferedReader reader = null;
         try {
             File[] files = makeSureCacheDirExists(cacheDir).listFiles();
-            if (files == null) {
+            if (files == null || files.length == 0) {
                 return domMap;
             }
 
@@ -93,8 +92,8 @@ public class DiskCache {
 
                 String fileName = URLDecoder.decode(file.getName(), "UTF-8");
 
-                if (!(fileName.endsWith(ServiceInfo.SPLITER + "meta") || fileName.endsWith(
-                    ServiceInfo.SPLITER + "special-url"))) {
+                if (!(fileName.endsWith(Constants.SERVICE_INFO_SPLITER + "meta") || fileName.endsWith(
+                    Constants.SERVICE_INFO_SPLITER + "special-url"))) {
                     ServiceInfo dom = new ServiceInfo(fileName);
                     List<Instance> ips = new ArrayList<Instance>();
                     dom.setHosts(ips);

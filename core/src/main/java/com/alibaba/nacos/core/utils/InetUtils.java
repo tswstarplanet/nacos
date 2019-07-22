@@ -78,7 +78,7 @@ public class InetUtils {
             preferHostnameOverIp = Boolean.getBoolean(SYSTEM_PREFER_HOSTNAME_OVER_IP);
 
             if (!preferHostnameOverIp) {
-                preferHostnameOverIp = Boolean.parseBoolean(PREFER_HOSTNAME_OVER_IP);
+                preferHostnameOverIp = Boolean.parseBoolean(PropertyUtil.getProperty(PREFER_HOSTNAME_OVER_IP));
             }
 
             if (preferHostnameOverIp) {
@@ -114,8 +114,7 @@ public class InetUtils {
                     log.info("Testing interface: " + ifc.getDisplayName());
                     if (ifc.getIndex() < lowest || result == null) {
                         lowest = ifc.getIndex();
-                    }
-                    else if (result != null) {
+                    } else if (result != null) {
                         continue;
                     }
 

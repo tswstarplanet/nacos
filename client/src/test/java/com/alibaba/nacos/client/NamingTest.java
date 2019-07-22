@@ -17,11 +17,9 @@ package com.alibaba.nacos.client;
 
 import com.alibaba.nacos.api.NacosFactory;
 import com.alibaba.nacos.api.PropertyKeyConst;
-import com.alibaba.nacos.api.common.Constants;
 import com.alibaba.nacos.api.naming.NamingService;
 import com.alibaba.nacos.api.naming.pojo.Instance;
-import com.alibaba.nacos.api.naming.pojo.ListView;
-import com.alibaba.nacos.api.selector.ExpressionSelector;
+
 import org.junit.Ignore;
 import org.junit.Test;
 
@@ -30,7 +28,7 @@ import java.util.Map;
 import java.util.Properties;
 
 /**
- * @author <a href="mailto:zpf.073@gmail.com">nkorange</a>
+ * @author nkorange
  */
 public class NamingTest {
 

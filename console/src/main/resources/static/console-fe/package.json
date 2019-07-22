@@ -9,7 +9,6 @@
     "eslint": "eslint --ext .js src/",
     "eslint-fix": "eslint  --ext .js --fix src/"
   },
-  "private": true,
   "husky": {
     "hooks": {
       "pre-commit": "lint-staged"
@@ -76,6 +75,7 @@
     "react-router-dom": "^4.3.1",
     "react-router-redux": "^4.0.8",
     "redux": "^4.0.1",
-    "redux-thunk": "^2.3.0"
+    "redux-thunk": "^2.3.0",
+    "yamljs": "^0.3.0"
   }
 }

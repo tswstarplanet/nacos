@@ -390,7 +390,8 @@ class MainLayout extends React.Component {
 
   refreshNav() {
     const { navList } = this.state;
-    const { functionMode } = this.props;
+    const { location, history, functionMode } = this.props;
+    const [configUrl, serviceUrl, clusterUrl] = ['/configurationManagement', '/serviceManagement', '/clusterManagement'];
     this.setState(
       {
         navList: navList.map(item => {
@@ -406,11 +407,26 @@ class MainLayout extends React.Component {
           ) {
             item.enable = true;
           }
+          if (
+            item.serviceName === 'clusterManagementVirtual' &&
+            (functionMode === null || functionMode === 'cluster')
+          ) {
+            item.enable = true;
+          }
           return item;
         }),
       },
       () => this.setState({ navRow: this.nacosGetNav(navList) }, () => this.renderNav())
     );
+    if (functionMode === 'config' && location.pathname === serviceUrl) {
+      history.push(configUrl);
+    }
+    if (functionMode === 'naming' && location.pathname === configUrl) {
+      history.push(serviceUrl);
+    }
+    if (functionMode === 'cluster' && location.pathname === clusterUrl) {
+      history.push(clusterUrl);
+    }
   }
 
   componentWillReceiveProps() {
@@ -440,7 +456,7 @@ class MainLayout extends React.Component {
                 ) : (
                   <div
                     style={{ textIndent: 0, display: !version ? 'none' : 'block' }}
-                    className={'product-nav-title'}
+                    className="product-nav-title"
                     title={nacosName}
                   >
                     <span>{nacosName}</span>
@@ -483,7 +499,12 @@ class MainLayout extends React.Component {
               <div>{this.props.children}</div>
             ) : (
               <div
-                style={{ height: 300, lineHeight: '300px', textAlign: 'center', fontSize: '18px' }}
+                style={{
+                  height: 300,
+                  lineHeight: 300,
+                  textAlign: 'center',
+                  fontSize: 18,
+                }}
               >
                 {doesNotExist}
               </div>

@@ -18,31 +18,34 @@ package com.alibaba.nacos.naming.misc;
 import com.alibaba.nacos.naming.boot.RunningConfig;
 import com.ning.http.client.AsyncCompletionHandler;
 import com.ning.http.client.Response;
+import org.springframework.util.StringUtils;
 
 import java.net.HttpURLConnection;
 import java.util.HashMap;
 import java.util.Map;
 
 /**
+ * Report local server status to other server
+ *
  * @author nacos
  */
 public class ServerStatusSynchronizer implements Synchronizer {
     @Override
     public void send(final String serverIP, Message msg) {
-        if(serverIP == null) {
+        if (StringUtils.isEmpty(serverIP)) {
             return;
         }
 
-        final Map<String,String> params = new HashMap<String, String>(2);
+        final Map<String, String> params = new HashMap<String, String>(2);
 
         params.put("serverStatus", msg.getData());
 
         String url = "http://" + serverIP + ":" + RunningConfig.getServerPort()
-                + RunningConfig.getContextPath() + UtilsAndCommons.NACOS_NAMING_CONTEXT + "/api/serverStatus";
+            + RunningConfig.getContextPath() + UtilsAndCommons.NACOS_NAMING_CONTEXT + "/operator/server/status";
 
-        if (serverIP.contains(UtilsAndCommons.CLUSTER_CONF_IP_SPLITER)) {
+        if (serverIP.contains(UtilsAndCommons.IP_PORT_SPLITER)) {
             url = "http://" + serverIP + RunningConfig.getContextPath() + UtilsAndCommons.NACOS_NAMING_CONTEXT
-                    + "/api/serverStatus";
+                + "/operator/server/status";
         }
 
         try {
@@ -58,8 +61,8 @@ public class ServerStatusSynchronizer implements Synchronizer {
                     return 0;
                 }
             });
-       } catch (Exception e) {
-            Loggers.SRV_LOG.warn("[STATUS-SYNCHRONIZE] failed to request serverStatus, remote server: " + serverIP, e);
+        } catch (Exception e) {
+            Loggers.SRV_LOG.warn("[STATUS-SYNCHRONIZE] failed to request serverStatus, remote server: {}", serverIP, e);
         }
     }
 

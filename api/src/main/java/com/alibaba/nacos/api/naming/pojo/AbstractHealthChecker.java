@@ -16,6 +16,7 @@
 package com.alibaba.nacos.api.naming.pojo;
 
 import com.alibaba.fastjson.annotation.JSONField;
+import com.alibaba.fastjson.serializer.SerializeWriter;
 import com.alibaba.nacos.api.common.Constants;
 import org.apache.commons.lang3.StringUtils;
 
@@ -25,7 +26,7 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * @author <a href="mailto:zpf.073@gmail.com">nkorange</a>
+ * @author nkorange
  */
 public abstract class AbstractHealthChecker implements Cloneable {
 
@@ -45,7 +46,29 @@ public abstract class AbstractHealthChecker implements Cloneable {
      * @return Another instance with exactly the same fields.
      * @throws CloneNotSupportedException
      */
+    @Override
     public abstract AbstractHealthChecker clone() throws CloneNotSupportedException;
+
+    /**
+     * used to JsonAdapter
+     */
+    public void jsonAdapterCallback(SerializeWriter writer) {
+        // do nothing
+    }
+
+    public static class None extends AbstractHealthChecker {
+
+        public static final String TYPE = "NONE";
+
+        public None() {
+            this.setType(TYPE);
+        }
+
+        @Override
+        public AbstractHealthChecker clone() throws CloneNotSupportedException {
+            return new None();
+        }
+    }
 
     public static class Http extends AbstractHealthChecker {
         public static final String TYPE = "HTTP";
@@ -102,6 +125,17 @@ public abstract class AbstractHealthChecker implements Cloneable {
             return headerMap;
         }
 
+        /**
+         * used to JsonAdapter
+         *
+         * @param writer
+         */
+        @Override
+        public void jsonAdapterCallback(SerializeWriter writer) {
+            writer.writeFieldValue(',', "path", getPath());
+            writer.writeFieldValue(',', "headers", getHeaders());
+        }
+
         @Override
         public int hashCode() {
             return Objects.hash(path, headers, expectedResponseCode);
@@ -113,7 +147,7 @@ public abstract class AbstractHealthChecker implements Cloneable {
                 return false;
             }
 
-            Http other = (Http)obj;
+            Http other = (Http) obj;
 
             if (!strEquals(type, other.getType())) {
                 return false;
@@ -159,6 +193,7 @@ public abstract class AbstractHealthChecker implements Cloneable {
 
         }
 
+        @Override
         public Tcp clone() throws CloneNotSupportedException {
             Tcp config = new Tcp();
             config.setType(this.type);
@@ -201,6 +236,18 @@ public abstract class AbstractHealthChecker implements Cloneable {
             this.pwd = pwd;
         }
 
+        /**
+         * used to JsonAdapter
+         *
+         * @param writer
+         */
+        @Override
+        public void jsonAdapterCallback(SerializeWriter writer) {
+            writer.writeFieldValue(',', "user", getUser());
+            writer.writeFieldValue(',', "pwd", getPwd());
+            writer.writeFieldValue(',', "cmd", getCmd());
+        }
+
         @Override
         public int hashCode() {
             return Objects.hash(user, pwd, cmd);
@@ -212,7 +259,7 @@ public abstract class AbstractHealthChecker implements Cloneable {
                 return false;
             }
 
-            Mysql other = (Mysql)obj;
+            Mysql other = (Mysql) obj;
 
             if (!strEquals(user, other.getUser())) {
                 return false;
